@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Humanizer-zh Portal</title>
+  <script src="openeva-portal://_libs/react.production.min.js"></script>
+  <script src="openeva-portal://_libs/react-dom.production.min.js"></script>
+  <script src="openeva-portal://_libs/babel.min.js"></script>
+  <style>
+    :root {
+      --bg: #ffffff; --fg: #1a1a2e; --muted: #6b7280; --border: #e5e7eb;
+      --accent: #7c3aed; --accent-hover: #6d28d9; --card: #f9fafb;
+      --green: #059669; --green-bg: #ecfdf5; --red: #dc2626; --red-bg: #fef2f2;
+      --tag-bg: #f3f4f6; --tag-fg: #4b5563;
+    }
+    .dark {
+      --bg: #0f0f23; --fg: #e5e7eb; --muted: #9ca3af; --border: #374151;
+      --accent: #8b5cf6; --accent-hover: #7c3aed; --card: #1a1a2e;
+      --green: #34d399; --green-bg: #064e3b; --red: #f87171; --red-bg: #450a0a;
+      --tag-bg: #1f2937; --tag-fg: #9ca3af;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg); color: var(--fg);
+    }
+    .portal { max-width: 800px; margin: 0 auto; padding: 24px 20px; }
+
+    /* Header */
+    .header { margin-bottom: 24px; }
+    .header h1 { font-size: 22px; font-weight: 700; margin-bottom: 6px; display: flex; align-items: center; gap: 10px; }
+    .header p { font-size: 13px; color: var(--muted); line-height: 1.5; }
+    .stats { display: flex; gap: 16px; margin-top: 12px; }
+    .stat { font-size: 12px; color: var(--muted); }
+    .stat strong { color: var(--fg); font-size: 16px; }
+
+    /* Search & Tags */
+    .search-bar {
+      position: relative; margin-bottom: 12px;
+    }
+    .search-bar input {
+      width: 100%; padding: 8px 12px 8px 34px;
+      border: 1px solid var(--border); border-radius: 10px;
+      font-size: 13px; background: var(--card); color: var(--fg); outline: none;
+    }
+    .search-bar input:focus { border-color: var(--accent); }
+    .search-bar input::placeholder { color: var(--muted); }
+    .search-icon {
+      position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+      color: var(--muted); font-size: 14px;
+    }
+    .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 20px; }
+    .tag {
+      padding: 4px 12px; border-radius: 14px; border: 1px solid var(--border);
+      font-size: 11px; cursor: pointer; background: transparent;
+      color: var(--muted); transition: all 0.2s;
+    }
+    .tag:hover { border-color: var(--accent); color: var(--fg); }
+    .tag.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+    /* Cards */
+    .cards { display: flex; flex-direction: column; gap: 16px; }
+    .card {
+      border: 1px solid var(--border); border-radius: 14px;
+      overflow: hidden; background: var(--card);
+    }
+    .card-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 16px; border-bottom: 1px solid var(--border);
+    }
+    .card-title { font-size: 14px; font-weight: 600; }
+    .card-tag {
+      padding: 2px 8px; border-radius: 10px; font-size: 10px;
+      background: var(--tag-bg); color: var(--tag-fg);
+    }
+    .card-body { display: flex; }
+    .card-col {
+      flex: 1; padding: 12px 16px; font-size: 12.5px; line-height: 1.6;
+    }
+    .card-col + .card-col { border-left: 1px solid var(--border); }
+    .col-label {
+      font-size: 10px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.5px; margin-bottom: 6px;
+    }
+    .col-label.before { color: var(--red); }
+    .col-label.after { color: var(--green); }
+    .card-text { color: var(--fg); }
+    .card-text.before { background: var(--red-bg); padding: 8px 10px; border-radius: 8px; }
+    .card-text.after { background: var(--green-bg); padding: 8px 10px; border-radius: 8px; }
+    .card-footer {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 16px; border-top: 1px solid var(--border);
+    }
+    .card-changes { font-size: 11px; color: var(--muted); }
+    .try-btn {
+      padding: 5px 14px; border: none; border-radius: 8px;
+      font-size: 12px; cursor: pointer; background: var(--accent);
+      color: #fff; transition: background 0.2s;
+    }
+    .try-btn:hover { background: var(--accent-hover); }
+    .count-info { font-size: 12px; color: var(--muted); margin-top: 16px; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect, useMemo } = React;
+
+    const EXAMPLES = [
+      {
+        id: 1, title: '1. Exaggerated Significance',
+        category: 'content',
+        tags: ['content', 'symbolism'],
+        before: 'In a notable recognition of his skill and potential, Anthony\'s journey from club football to national representation marked a significant milestone, highlighting his growing impact on the sport.',
+        after: 'Anthony was selected for the national squad in 2023 after scoring 14 goals in the league season.',
+        changes: 'Removed "significant milestone", "growing impact", vague praise'
+      },
+      {
+        id: 2, title: '2. Propaganda Language',
+        category: 'content',
+        tags: ['content', 'propaganda'],
+        before: 'The vibrant community nestled in the heart of the region boasts a rich cultural heritage and breathtaking natural beauty that captivates visitors.',
+        after: 'The town has a population of 12,000 and hosts a weekly outdoor market dating back to the 1920s.',
+        changes: 'Replaced "vibrant/nestled/rich/breathtaking" with specifics'
+      },
+      {
+        id: 3, title: '3. Shallow Analysis (-ing)',
+        category: 'content',
+        tags: ['content', 'analysis'],
+        before: 'The temple\'s blue, green, and gold tones resonate with the region\'s natural beauty, symbolizing the Texas bluebonnets, the Gulf of Mexico, and the diverse Texan landscape, reflecting the community\'s deep connection to the land.',
+        after: 'The temple uses blue, green, and gold. The architect said the colors are meant to echo local bluebonnets and the Gulf coast.',
+        changes: 'Removed -ing chain, added specific attribution'
+      },
+      {
+        id: 4, title: '4. Vague Attribution',
+        category: 'content',
+        tags: ['content', 'attribution'],
+        before: 'Due to its unique characteristics, the river has attracted the interest of researchers and conservationists. Experts believe it plays a vital role in the regional ecosystem.',
+        after: 'According to a 2019 survey by the Chinese Academy of Sciences, the river supports several endemic fish species.',
+        changes: 'Replaced "experts believe" with specific source'
+      },
+      {
+        id: 5, title: '5. AI Vocabulary',
+        category: 'language',
+        tags: ['language', 'vocabulary'],
+        before: 'Furthermore, a notable feature of Somali cuisine is the incorporation of camel meat. The enduring testament of Italian colonial influence is the widespread adoption of pasta in the local culinary landscape, showcasing how these dishes have been woven into the traditional diet.',
+        after: 'Somali cuisine also includes camel meat, considered a delicacy. Pasta dishes introduced during the Italian colonial period remain common, especially in the south.',
+        changes: 'Removed "furthermore/testament/landscape/showcasing/woven"'
+      },
+      {
+        id: 6, title: '6. Dash Overuse',
+        category: 'style',
+        tags: ['style', 'punctuation'],
+        before: 'The term was promoted mainly by Dutch institutions — not by the people themselves. You wouldn\'t say "Netherlands, Europe" as an address — yet this mislabeling persists — even in official documents.',
+        after: 'The term was promoted mainly by Dutch institutions, not by the people themselves. You wouldn\'t say "Netherlands, Europe" as an address, but this mislabeling persists in official documents.',
+        changes: 'Replaced em-dashes with commas/periods'
+      },
+      {
+        id: 7, title: '7. Rule of Three',
+        category: 'style',
+        tags: ['style', 'structure'],
+        before: 'The event features keynote speeches, panel discussions, and networking opportunities. Attendees can expect innovation, inspiration, and industry insights.',
+        after: 'The event features talks and panel discussions. There\'s also informal networking time between sessions.',
+        changes: 'Broke triple groupings, merged into natural sentences'
+      },
+      {
+        id: 8, title: '8. Negation Parallelism',
+        category: 'language',
+        tags: ['language', 'structure'],
+        before: 'It\'s not just beats flowing under vocals; it\'s part of the aggression and atmosphere. This isn\'t just a song — it\'s a statement.',
+        after: 'The heavy beat adds to the aggressive tone.',
+        changes: 'Removed "not just X, it\'s Y" pattern'
+      },
+      {
+        id: 9, title: '9. Collaborative Traces',
+        category: 'communication',
+        tags: ['communication', 'chatbot'],
+        before: 'Here\'s an overview of the French Revolution. I hope this helps! Let me know if you\'d like me to expand on any section.',
+        after: 'The French Revolution began in 1789 when fiscal crises and food shortages led to widespread unrest.',
+        changes: 'Removed chatbot pleasantries, added content'
+      },
+      {
+        id: 10, title: '10. Generic Positive Conclusion',
+        category: 'content',
+        tags: ['content', 'conclusion'],
+        before: 'The company\'s future looks bright. Exciting times lie ahead as they continue their journey toward excellence. This represents a significant step in the right direction.',
+        after: 'The company plans to open two more locations next year.',
+        changes: 'Replaced vague optimism with concrete plans'
+      },
+    ];
+
+    const ALL_TAGS = ['content', 'language', 'style', 'communication', 'symbolism', 'propaganda', 'analysis', 'attribution', 'vocabulary', 'punctuation', 'structure', 'chatbot', 'conclusion'];
+
+    function App() {
+      const [isDark, setIsDark] = useState(false);
+      const [search, setSearch] = useState('');
+      const [activeTag, setActiveTag] = useState(null);
+
+      useEffect(() => {
+        const reqId = crypto.randomUUID();
+        function onMsg(e) {
+          if (e.data?.type === 'openeva:theme' && e.data.requestId === reqId) {
+            setIsDark(e.data.payload?.mode === 'dark');
+            window.removeEventListener('message', onMsg);
+          }
+        }
+        window.addEventListener('message', onMsg);
+        window.parent.postMessage({ type: 'openeva:getTheme', requestId: reqId }, '*');
+        return () => window.removeEventListener('message', onMsg);
+      }, []);
+
+      useEffect(() => {
+        document.documentElement.className = isDark ? 'dark' : '';
+      }, [isDark]);
+
+      const filtered = useMemo(() => {
+        let items = EXAMPLES;
+        if (activeTag) {
+          items = items.filter(ex => ex.tags.includes(activeTag));
+        }
+        if (search) {
+          const q = search.toLowerCase();
+          items = items.filter(ex =>
+            ex.title.toLowerCase().includes(q) ||
+            ex.before.toLowerCase().includes(q) ||
+            ex.after.toLowerCase().includes(q)
+          );
+        }
+        return items;
+      }, [activeTag, search]);
+
+      function handleTry(example) {
+        const prompt = `Please humanize the following text, removing AI writing patterns:\n\n${example.before}`;
+        window.parent.postMessage({
+          type: 'openeva:use',
+          payload: { prompt }
+        }, '*');
+      }
+
+      return (
+        <div className="portal">
+          <div className="header">
+            <h1><span>Humanizer-zh</span></h1>
+            <p>AI writing pattern detection & humanization. Based on Wikipedia's "Signs of AI writing" guide. Browse examples of common AI patterns and their natural alternatives.</p>
+            <div className="stats">
+              <div className="stat"><strong>24</strong> patterns</div>
+              <div className="stat"><strong>6</strong> categories</div>
+              <div className="stat"><strong>50pt</strong> scoring system</div>
+            </div>
+          </div>
+
+          <div className="search-bar">
+            <span className="search-icon">&#128269;</span>
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search examples..."
+            />
+          </div>
+
+          <div className="tags">
+            <button
+              className={`tag ${!activeTag ? 'active' : ''}`}
+              onClick={() => setActiveTag(null)}
+            >All</button>
+            {ALL_TAGS.map(t => (
+              <button
+                key={t}
+                className={`tag ${activeTag === t ? 'active' : ''}`}
+                onClick={() => setActiveTag(activeTag === t ? null : t)}
+              >{t}</button>
+            ))}
+          </div>
+
+          <div className="cards">
+            {filtered.map(ex => (
+              <div key={ex.id} className="card">
+                <div className="card-header">
+                  <span className="card-title">{ex.title}</span>
+                  <span className="card-tag">{ex.category}</span>
+                </div>
+                <div className="card-body">
+                  <div className="card-col">
+                    <div className="col-label before">BEFORE (AI)</div>
+                    <div className="card-text before">{ex.before}</div>
+                  </div>
+                  <div className="card-col">
+                    <div className="col-label after">AFTER (Human)</div>
+                    <div className="card-text after">{ex.after}</div>
+                  </div>
+                </div>
+                <div className="card-footer">
+                  <span className="card-changes">{ex.changes}</span>
+                  <button className="try-btn" onClick={() => handleTry(ex)}>
+                    Try This
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="count-info">
+            {filtered.length} of {EXAMPLES.length} examples
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

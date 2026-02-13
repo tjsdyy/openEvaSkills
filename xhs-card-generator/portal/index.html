@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>小红书爆款图文生成器 - Portal</title>
+  <script src="openeva-portal://_libs/react.production.min.js"></script>
+  <script src="openeva-portal://_libs/react-dom.production.min.js"></script>
+  <script src="openeva-portal://_libs/babel.min.js"></script>
+  <style>
+    :root {
+      --bg: #ffffff; --fg: #1a1a2e; --muted: #6b7280; --border: #e5e7eb;
+      --accent: #ff2442; --accent-hover: #e6102e; --card: #f9fafb;
+      --tag-bg: #f3f4f6; --tag-fg: #4b5563;
+      --preview-bg: linear-gradient(135deg, #1e1e2e 0%, #2d2b55 50%, #3e3a5f 100%);
+    }
+    .dark {
+      --bg: #0f0f23; --fg: #e5e7eb; --muted: #9ca3af; --border: #374151;
+      --accent: #ff4d6a; --accent-hover: #ff2442; --card: #1a1a2e;
+      --tag-bg: #1f2937; --tag-fg: #9ca3af;
+      --preview-bg: linear-gradient(135deg, #0a0a1a 0%, #1a1840 50%, #2a2845 100%);
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg); color: var(--fg);
+    }
+    .portal { max-width: 900px; margin: 0 auto; padding: 24px 20px; }
+
+    /* Header */
+    .header { margin-bottom: 28px; }
+    .header h1 { font-size: 24px; font-weight: 700; margin-bottom: 8px; display: flex; align-items: center; gap: 10px; }
+    .header p { font-size: 13px; color: var(--muted); line-height: 1.6; max-width: 600px; }
+    .stats { display: flex; gap: 20px; margin-top: 14px; }
+    .stat { font-size: 12px; color: var(--muted); display: flex; flex-direction: column; align-items: center; }
+    .stat strong { color: var(--fg); font-size: 18px; }
+
+    /* Tags */
+    .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 24px; }
+    .tag {
+      padding: 5px 14px; border-radius: 14px; border: 1px solid var(--border);
+      font-size: 12px; cursor: pointer; background: transparent;
+      color: var(--muted); transition: all 0.2s;
+    }
+    .tag:hover { border-color: var(--accent); color: var(--fg); }
+    .tag.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+    /* Cards */
+    .cards { display: flex; flex-direction: column; gap: 24px; }
+    .card {
+      border: 1px solid var(--border); border-radius: 16px;
+      overflow: hidden; background: var(--card);
+    }
+    .card-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 18px; border-bottom: 1px solid var(--border);
+    }
+    .card-title { font-size: 15px; font-weight: 600; }
+    .card-tag {
+      padding: 3px 10px; border-radius: 10px; font-size: 11px;
+      background: var(--tag-bg); color: var(--tag-fg);
+    }
+    .card-body { display: flex; min-height: 200px; }
+    .card-preview {
+      width: 200px; min-width: 200px; background: var(--preview-bg);
+      display: flex; align-items: center; justify-content: center;
+      padding: 12px; position: relative; overflow: hidden;
+    }
+    .mini-card {
+      width: 120px; height: 160px; background: #F9F9F6; border-radius: 0;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      padding: 8px; display: flex; flex-direction: column; gap: 4px;
+    }
+    .mini-cover {
+      width: 100%; height: 55px; border-radius: 0; overflow: hidden;
+    }
+    .mini-cover svg { width: 100%; height: 100%; }
+    .mini-title {
+      font-size: 7px; font-weight: 700; color: #000; line-height: 1.2;
+      font-family: 'Noto Serif SC', serif;
+    }
+    .mini-lines { flex: 1; display: flex; flex-direction: column; gap: 2px; justify-content: flex-start; padding-top: 2px; }
+    .mini-line {
+      height: 2px; background: #ddd; border-radius: 1px;
+    }
+    .card-content {
+      flex: 1; padding: 14px 18px; font-size: 13px; line-height: 1.7;
+      color: var(--fg); display: flex; flex-direction: column; gap: 8px;
+    }
+    .card-desc { color: var(--muted); font-size: 12px; }
+    .card-excerpt {
+      background: var(--tag-bg); padding: 10px 12px; border-radius: 8px;
+      font-size: 12px; line-height: 1.6; color: var(--fg);
+      max-height: 120px; overflow-y: auto;
+    }
+    .card-footer {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 18px; border-top: 1px solid var(--border);
+    }
+    .card-meta { font-size: 11px; color: var(--muted); display: flex; gap: 12px; }
+    .try-btn {
+      padding: 6px 18px; border: none; border-radius: 10px;
+      font-size: 12px; font-weight: 600; cursor: pointer;
+      background: var(--accent); color: #fff; transition: background 0.2s;
+    }
+    .try-btn:hover { background: var(--accent-hover); }
+    .count-info { font-size: 12px; color: var(--muted); margin-top: 20px; text-align: center; }
+
+    @media (max-width: 600px) {
+      .card-body { flex-direction: column; }
+      .card-preview { width: 100%; min-width: unset; height: 140px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect, useMemo } = React;
+
+    const EXAMPLES = [
+      {
+        id: 1,
+        title: '科技趋势解读',
+        category: 'tech',
+        tags: ['tech', 'trending'],
+        desc: '科技行业深度分析文章，适合知识类博主',
+        content: '# AI 正在改变我们的工作方式\n\n2024 年，人工智能不再是遥远的未来概念。从代码编写到文案创作，AI 工具已经深入我们的日常工作流。\n\n## 三个关键变化\n\n1. **效率提升**：重复性工作被自动化，让人类专注于创造性任务\n2. **协作模式**：人机协作成为新常态\n3. **技能迁移**：学会与 AI 协作成为核心竞争力\n\n> 未来不是 AI 取代人类，而是会用 AI 的人取代不会用的人。',
+        coverColor: '#6366f1',
+        coverIcon: 'M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5',
+        charCount: 180,
+        readTime: '2 min'
+      },
+      {
+        id: 2,
+        title: '生活方式分享',
+        category: 'lifestyle',
+        tags: ['lifestyle', 'wellness'],
+        desc: '健康生活方式类内容，高互动率话题',
+        content: '# 早起的 100 天，我的生活发生了什么变化\n\n从一个每天赖床到最后一刻的人，到现在每天 5:30 自然醒。这 100 天的变化，比我想象的要大得多。\n\n## 身体变化\n\n皮肤变好了，黑眼圈淡了，体重也自然降了 3 公斤。不是因为刻意节食，而是早起后有时间好好吃早餐，反而不会暴饮暴食。\n\n## 心态变化\n\n每天多出来的 2 小时，是完全属于自己的时间。没有消息打扰，没有工作压力，就是安安静静地读书、写字、思考。\n\n**最大的收获不是效率，而是掌控感。**',
+        coverColor: '#f59e0b',
+        coverIcon: 'M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z',
+        charCount: 250,
+        readTime: '3 min'
+      },
+      {
+        id: 3,
+        title: '职场干货',
+        category: 'career',
+        tags: ['career', 'trending'],
+        desc: '职场经验总结，容易引发共鸣和收藏',
+        content: '# 工作 5 年，我才明白的 7 件事\n\n刚毕业时以为努力就够了，后来发现职场的规则远比想象的复杂。\n\n## 1. 选择比努力重要\n\n行业的天花板决定了你的上限。在夕阳行业再努力，也不如在朝阳行业做到及格。\n\n## 2. 向上管理是必修课\n\n不是拍马屁，而是让领导知道你在做什么、做得怎么样。**主动汇报**比被动等待重要 10 倍。\n\n## 3. 人脉不是加微信\n\n真正有用的人脉是你能为对方提供价值。先想想你能帮别人什么，再想别人能帮你什么。\n\n> 职场的本质是价值交换。',
+        coverColor: '#10b981',
+        coverIcon: 'M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z',
+        charCount: 220,
+        readTime: '3 min'
+      },
+      {
+        id: 4,
+        title: '读书笔记',
+        category: 'reading',
+        tags: ['reading', 'knowledge'],
+        desc: '书评和读书笔记，知识类小红书高收藏率内容',
+        content: '# 《纳瓦尔宝典》读书笔记\n\n这本书改变了我对财富和幸福的理解。\n\n## 关于财富\n\n纳瓦尔说：**"寻找财富，而不是金钱或地位。"** 财富是在你睡觉时仍然为你赚钱的资产。\n\n核心观点：\n- 用特定知识、责任感和杠杆武装自己\n- 特定知识是那些无法通过培训获得的知识\n- 代码和媒体是零边际成本的杠杆\n\n## 关于幸福\n\n> 幸福是一种技能，可以通过训练获得。\n\n不是等到拥有一切才快乐，而是学会在当下找到平静。\n\n**推荐指数：** 9/10',
+        coverColor: '#8b5cf6',
+        coverIcon: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253',
+        charCount: 200,
+        readTime: '2 min'
+      },
+      {
+        id: 5,
+        title: '美食教程',
+        category: 'food',
+        tags: ['food', 'lifestyle'],
+        desc: '美食制作教程，小红书高热度品类',
+        content: '# 零失败！5 分钟搞定日式溏心蛋\n\n试过无数方子，终于找到最稳定的配方。每次都是完美溏心，新手也能一次成功。\n\n## 材料\n\n- 鸡蛋 6 个（常温）\n- 酱油 3 大勺\n- 味醂 2 大勺\n- 清水 100ml\n- 蒜 2 瓣（拍扁）\n\n## 步骤\n\n1. 水煮沸后放入鸡蛋，**中火煮 6 分 30 秒**（这是关键！）\n2. 立刻捞出放入冰水中冷却 5 分钟\n3. 剥壳，放入调好的酱汁中\n4. 冷藏腌制 4 小时以上，过夜最佳\n\n> 小贴士：鸡蛋一定要常温，冷藏的鸡蛋会导致时间不准。\n\n**溏心程度可以通过调整煮制时间控制：**\n- 6 分钟 = 流心\n- 6 分 30 秒 = 溏心\n- 7 分钟 = 半熟',
+        coverColor: '#ef4444',
+        coverIcon: 'M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm0-6C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z',
+        charCount: 280,
+        readTime: '3 min'
+      },
+    ];
+
+    const ALL_TAGS = ['tech', 'lifestyle', 'career', 'reading', 'food', 'trending', 'wellness', 'knowledge'];
+
+    const TAG_LABELS = {
+      tech: '科技', lifestyle: '生活', career: '职场', reading: '读书',
+      food: '美食', trending: '热门', wellness: '健康', knowledge: '知识'
+    };
+
+    function MiniCardSVG({ color, iconPath }) {
+      return (
+        <svg viewBox="0 0 104 55" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="104" height="55" fill={color} opacity="0.15" />
+          <rect x="20" y="8" width="64" height="40" rx="4" fill={color} opacity="0.25" />
+          <g transform="translate(40, 15.5)" stroke={color} strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
+            <path d={iconPath} transform="scale(1)" />
+          </g>
+        </svg>
+      );
+    }
+
+    function App() {
+      const [isDark, setIsDark] = useState(false);
+      const [activeTag, setActiveTag] = useState(null);
+
+      useEffect(() => {
+        const reqId = crypto.randomUUID();
+        function onMsg(e) {
+          if (e.data?.type === 'openeva:theme' && e.data.requestId === reqId) {
+            setIsDark(e.data.payload?.mode === 'dark');
+            window.removeEventListener('message', onMsg);
+          }
+        }
+        window.addEventListener('message', onMsg);
+        window.parent.postMessage({ type: 'openeva:getTheme', requestId: reqId }, '*');
+        return () => window.removeEventListener('message', onMsg);
+      }, []);
+
+      useEffect(() => {
+        document.documentElement.className = isDark ? 'dark' : '';
+      }, [isDark]);
+
+      const filtered = useMemo(() => {
+        if (!activeTag) return EXAMPLES;
+        return EXAMPLES.filter(ex => ex.tags.includes(activeTag));
+      }, [activeTag]);
+
+      function handleTry(example) {
+        window.parent.postMessage({
+          type: 'openeva:use',
+          payload: {
+            form: true,
+            formValues: {
+              content: example.content,
+              coverStyle: 'new-yorker',
+              cardCount: 'auto'
+            }
+          }
+        }, '*');
+      }
+
+      return (
+        <div className="portal">
+          <div className="header">
+            <h1><span>📕</span> 小红书爆款图文生成器</h1>
+            <p>将文章内容一键转换为精美的小红书风格图文卡片。600x800px 深色背景米白卡片，自带封面插画，支持多种内容类型。</p>
+            <div className="stats">
+              <div className="stat"><strong>600x800</strong>卡片尺寸</div>
+              <div className="stat"><strong>4</strong>封面风格</div>
+              <div className="stat"><strong>SVG</strong>内联插画</div>
+              <div className="stat"><strong>多张</strong>自动拆分</div>
+            </div>
+          </div>
+
+          <div className="tags">
+            <button
+              className={`tag ${!activeTag ? 'active' : ''}`}
+              onClick={() => setActiveTag(null)}
+            >全部</button>
+            {ALL_TAGS.map(t => (
+              <button
+                key={t}
+                className={`tag ${activeTag === t ? 'active' : ''}`}
+                onClick={() => setActiveTag(activeTag === t ? null : t)}
+              >{TAG_LABELS[t] || t}</button>
+            ))}
+          </div>
+
+          <div className="cards">
+            {filtered.map(ex => (
+              <div key={ex.id} className="card">
+                <div className="card-header">
+                  <span className="card-title">{ex.title}</span>
+                  <span className="card-tag">{TAG_LABELS[ex.category] || ex.category}</span>
+                </div>
+                <div className="card-body">
+                  <div className="card-preview">
+                    <div className="mini-card">
+                      <div className="mini-cover">
+                        <MiniCardSVG color={ex.coverColor} iconPath={ex.coverIcon} />
+                      </div>
+                      <div className="mini-title">{ex.content.split('\n')[0].replace('# ', '')}</div>
+                      <div className="mini-lines">
+                        <div className="mini-line" style={{width: '100%'}} />
+                        <div className="mini-line" style={{width: '85%'}} />
+                        <div className="mini-line" style={{width: '92%'}} />
+                        <div className="mini-line" style={{width: '70%'}} />
+                        <div className="mini-line" style={{width: '88%'}} />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="card-content">
+                    <div className="card-desc">{ex.desc}</div>
+                    <div className="card-excerpt">
+                      {ex.content.split('\n').slice(0, 6).join('\n')}
+                    </div>
+                  </div>
+                </div>
+                <div className="card-footer">
+                  <div className="card-meta">
+                    <span>{ex.charCount} 字</span>
+                    <span>{ex.readTime}</span>
+                  </div>
+                  <button className="try-btn" onClick={() => handleTry(ex)}>
+                    试一试
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="count-info">
+            {filtered.length} / {EXAMPLES.length} 个示例
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>小红书爆款图文生成器</title>
+  <script src="openeva-portal://_libs/react.production.min.js"></script>
+  <script src="openeva-portal://_libs/react-dom.production.min.js"></script>
+  <script src="openeva-portal://_libs/babel.min.js"></script>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --fg: #1a1a2e;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --accent: #ff2442;
+      --accent-hover: #e6102e;
+      --card: #f9fafb;
+      --input-bg: #ffffff;
+    }
+    .dark {
+      --bg: #0f0f23;
+      --fg: #e5e7eb;
+      --muted: #9ca3af;
+      --border: #374151;
+      --accent: #ff4d6a;
+      --accent-hover: #ff2442;
+      --card: #1a1a2e;
+      --input-bg: #1e1e36;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      overflow: hidden;
+    }
+    .form-root {
+      display: flex;
+      flex-direction: column;
+      height: 320px;
+      padding: 12px 16px;
+      gap: 8px;
+    }
+    .form-header {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--fg);
+      flex-shrink: 0;
+    }
+    .form-header span { font-size: 16px; }
+    textarea {
+      flex: 1;
+      width: 100%;
+      resize: none;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 13px;
+      line-height: 1.5;
+      background: var(--input-bg);
+      color: var(--fg);
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    textarea:focus { border-color: var(--accent); }
+    textarea::placeholder { color: var(--muted); }
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .select-wrap {
+      position: relative;
+    }
+    select {
+      appearance: none;
+      padding: 6px 28px 6px 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 12px;
+      background: var(--input-bg);
+      color: var(--fg);
+      cursor: pointer;
+      outline: none;
+    }
+    select:focus { border-color: var(--accent); }
+    .select-wrap::after {
+      content: '';
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      border: 4px solid transparent;
+      border-top-color: var(--muted);
+      pointer-events: none;
+    }
+    .chips {
+      display: flex;
+      gap: 4px;
+    }
+    .chip {
+      padding: 5px 12px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      font-size: 11px;
+      cursor: pointer;
+      background: transparent;
+      color: var(--muted);
+      transition: all 0.2s;
+    }
+    .chip:hover { border-color: var(--accent); color: var(--fg); }
+    .chip.active {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+    .spacer { flex: 1; }
+    .char-count {
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .submit-btn {
+      padding: 6px 20px;
+      border: none;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      background: var(--accent);
+      color: #fff;
+      transition: background 0.2s;
+    }
+    .submit-btn:hover { background: var(--accent-hover); }
+    .submit-btn:disabled { opacity: 0.5; cursor: default; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    function App() {
+      const [content, setContent] = useState('');
+      const [coverStyle, setCoverStyle] = useState('new-yorker');
+      const [cardCount, setCardCount] = useState('auto');
+      const [isDark, setIsDark] = useState(false);
+
+      // Query theme on mount
+      useEffect(() => {
+        const reqId = crypto.randomUUID();
+        function onMsg(e) {
+          if (e.data?.type === 'openeva:theme' && e.data.requestId === reqId) {
+            setIsDark(e.data.payload?.mode === 'dark');
+            window.removeEventListener('message', onMsg);
+          }
+        }
+        window.addEventListener('message', onMsg);
+        window.parent.postMessage({ type: 'openeva:getTheme', requestId: reqId }, '*');
+        return () => window.removeEventListener('message', onMsg);
+      }, []);
+
+      // Listen for pre-fill values from portal
+      useEffect(() => {
+        function onSetValues(e) {
+          if (e.data?.type === 'openeva:setFormValues') {
+            const v = e.data.payload;
+            if (v) {
+              if (v.content != null) setContent(String(v.content));
+              if (v.coverStyle != null) setCoverStyle(String(v.coverStyle));
+              if (v.cardCount != null) setCardCount(String(v.cardCount));
+            }
+          }
+          if (e.data?.type === 'openeva:skillInfo' && e.data.payload?.initialValues) {
+            const v = e.data.payload.initialValues;
+            if (v.content != null) setContent(String(v.content));
+            if (v.coverStyle != null) setCoverStyle(String(v.coverStyle));
+            if (v.cardCount != null) setCardCount(String(v.cardCount));
+          }
+        }
+        window.addEventListener('message', onSetValues);
+        return () => window.removeEventListener('message', onSetValues);
+      }, []);
+
+      useEffect(() => {
+        document.documentElement.className = isDark ? 'dark' : '';
+      }, [isDark]);
+
+      function handleSubmit() {
+        if (!content.trim()) return;
+
+        const parts = ['[Skill: 小红书爆款图文生成器]'];
+        parts.push(`Content: ${content.trim()}`);
+        parts.push(`CoverStyle: ${coverStyle}`);
+        parts.push(`CardCount: ${cardCount}`);
+
+        window.parent.postMessage({
+          type: 'openeva:sendPrompt',
+          payload: { message: parts.join('\n') }
+        }, '*');
+      }
+
+      const coverOptions = [
+        { value: 'new-yorker', label: 'New Yorker 漫画' },
+        { value: 'minimalist', label: '极简插画' },
+        { value: 'watercolor', label: '水彩风格' },
+        { value: 'line-art', label: '线条艺术' },
+      ];
+
+      const cardOptions = [
+        { value: 'auto', label: '自动' },
+        { value: '1', label: '单张' },
+        { value: 'multi', label: '多张' },
+      ];
+
+      return (
+        <div className="form-root">
+          <div className="form-header">
+            <span>📕</span> 粘贴文章内容，生成小红书爆款图文卡片
+          </div>
+          <textarea
+            value={content}
+            onChange={e => setContent(e.target.value)}
+            placeholder="在此粘贴文章内容、文章链接或文章标题+正文...&#10;&#10;支持 Markdown 格式，包括标题、列表、代码块、引用等"
+          />
+          <div className="controls">
+            <div className="select-wrap">
+              <select value={coverStyle} onChange={e => setCoverStyle(e.target.value)}>
+                {coverOptions.map(o => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="chips">
+              {cardOptions.map(o => (
+                <button
+                  key={o.value}
+                  className={`chip ${cardCount === o.value ? 'active' : ''}`}
+                  onClick={() => setCardCount(o.value)}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+            <span className="spacer" />
+            <span className="char-count">{content.length} 字</span>
+            <button
+              className="submit-btn"
+              onClick={handleSubmit}
+              disabled={!content.trim()}
+            >
+              生成卡片
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

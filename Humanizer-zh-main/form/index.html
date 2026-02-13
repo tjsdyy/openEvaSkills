@@ -153,6 +153,29 @@
         return () => window.removeEventListener('message', onMsg);
       }, []);
 
+      // Listen for pre-fill values from desktop (portal "Try This" flow)
+      useEffect(() => {
+        function onSetValues(e) {
+          if (e.data?.type === 'openeva:setFormValues') {
+            const v = e.data.payload;
+            if (v) {
+              if (v.text != null) setText(String(v.text));
+              if (v.style != null) setStyle(String(v.style));
+              if (v.intensity != null) setIntensity(String(v.intensity));
+            }
+          }
+          // Also check skillInfo response for initialValues
+          if (e.data?.type === 'openeva:skillInfo' && e.data.payload?.initialValues) {
+            const v = e.data.payload.initialValues;
+            if (v.text != null) setText(String(v.text));
+            if (v.style != null) setStyle(String(v.style));
+            if (v.intensity != null) setIntensity(String(v.intensity));
+          }
+        }
+        window.addEventListener('message', onSetValues);
+        return () => window.removeEventListener('message', onSetValues);
+      }, []);
+
       useEffect(() => {
         document.documentElement.className = isDark ? 'dark' : '';
       }, [isDark]);

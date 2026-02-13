@@ -231,10 +231,12 @@
       }, [activeTag, search]);
 
       function handleTry(example) {
-        const prompt = `Please humanize the following text, removing AI writing patterns:\n\n${example.before}`;
         window.parent.postMessage({
           type: 'openeva:use',
-          payload: { prompt }
+          payload: {
+            form: true,
+            formValues: { text: example.before, style: 'auto', intensity: 'medium' }
+          }
         }, '*');
       }
 

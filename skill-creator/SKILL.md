@@ -157,22 +157,39 @@ window.parent.postMessage({
 }, "*");
 ```
 
-#### Desktop → Form (responses)
+#### Desktop → Form (responses and commands)
 
 ```javascript
-// Listen for responses
+// Listen for responses and commands
 window.addEventListener("message", (event) => {
   const { type, requestId, payload } = event.data;
 
   if (type === "openeva:skillInfo") {
-    // payload: { name, description, metadata, inputs }
+    // payload: { name, description, metadata, inputs, initialValues? }
+    // initialValues is present when navigating from portal "Try This" with form mode
+    if (payload.initialValues) {
+      // Pre-fill form fields with these values
+      // e.g. setText(payload.initialValues.text)
+    }
   }
 
   if (type === "openeva:theme") {
     // payload: { mode: "dark" | "light" }
   }
+
+  if (type === "openeva:setFormValues") {
+    // Sent by desktop after iframe loads, when portal used form mode "Try This"
+    // payload: { text: "...", style: "formal", ... }
+    // Pre-fill all matching form fields with these values
+  }
 });
 ```
+
+**`openeva:setFormValues`** is sent by the desktop app to the form iframe when the user clicks "Try This" in the portal with `form: true` mode. The form should listen for this message and update its state accordingly. This happens both via:
+1. `openeva:setFormValues` — sent after iframe `onLoad`
+2. `openeva:skillInfo` response — includes `initialValues` field
+
+Handle both to ensure reliable pre-fill regardless of message timing.
 
 ### Shared Libraries (built-in, no CDN needed)
 
@@ -283,8 +300,11 @@ A portal page is a full-page React app for showcasing the skill: examples galler
 
 #### Portal → Desktop (actions)
 
+The portal's "Try This" button supports two modes:
+
+**Mode A: Text prompt (simple — fills ChatInput)**
 ```javascript
-// Use an example — creates a chat session with the prompt
+// Creates a chat session, pre-fills the chat input with the prompt text
 window.parent.postMessage({
   type: "openeva:use",
   payload: {
@@ -292,6 +312,24 @@ window.parent.postMessage({
   }
 }, "*");
 ```
+
+**Mode B: Form pre-fill (recommended for skills with form/ — opens form with values)**
+```javascript
+// Creates a chat session, opens the skill's form and pre-fills it with values
+window.parent.postMessage({
+  type: "openeva:use",
+  payload: {
+    form: true,
+    formValues: { text: "example text here", style: "formal", intensity: "medium" }
+  }
+}, "*");
+```
+
+When `form: true` is set, the desktop app navigates to the ChatPage with `formValues` in the navigation state. The SkillFormArea then:
+- For **IframeForm**: sends `openeva:setFormValues` to the form iframe after it loads, and includes `initialValues` in the `openeva:skillInfo` response
+- For **BuiltinForm**: merges `formValues` into the form state, overriding field defaults
+
+**Choose Mode B when** the skill has a `form/` directory — it provides a much better UX because users see the form pre-filled with example values and can tweak before submitting.
 
 #### Portal → Desktop (queries)
 
@@ -358,23 +396,119 @@ Resolution: 1080p
 
 ## Your Task
 
-Based on the user's input, generate:
+Follow this **creation workflow** step-by-step. At each decision point, confirm with the user before proceeding.
+
+### Step 1: Generate SKILL.md
+
+Generate the complete `SKILL.md` with YAML frontmatter and prompt content based on the user's input.
+
+### Step 2: Portal decision
+
+Ask the user:
+- **Do you want a Portal (showcase page)?** If yes, ask which portal style:
+  - **Example Gallery** — before/after cards with tag filtering (like Humanizer-zh)
+  - **Media Gallery** — image/video grid with masonry layout
+  - **Documentation** — tutorial-style page with sections
+  - **Interactive Demo** — live playground/preview
+
+### Step 3: Form decision
+
+Ask the user:
+- **Do you want a custom Form?** If yes:
+  - Propose the form fields based on the skill's purpose (field key, label, type, default value)
+  - Let the user confirm/adjust the field list
+  - Ask: **Builtin Form or Custom Form (iframe)?**
+    - **Builtin**: Define `inputs` in SKILL.md YAML — simpler, no HTML needed
+    - **Custom iframe**: Create `form/index.html` — richer UI, custom validation, dynamic fields
+
+### Step 4: Portal "Try This" mode
+
+If the skill has **both Portal and Form**, ask the user:
+- **How should portal "Try This" work?**
+  - **Text mode** (Mode A): Sends `{ prompt: "..." }` — fills the ChatInput text box
+  - **Form mode** (Mode B, recommended): Sends `{ form: true, formValues: {...} }` — opens the form pre-filled with example values
+
+If Form mode is chosen, the portal `handleTry` must map example data to `formValues` keys that match the form fields. The form must also handle `openeva:setFormValues` messages.
+
+### Step 5: Generate files
+
+Based on the decisions above, generate all files:
 
 1. **`SKILL.md`** — Complete skill definition with YAML frontmatter and prompt content
 
-2. **If "Custom Form" selected**: A form app scaffold:
-   - `form/index.html` — entry point
-   - React component code with all input fields
-   - PostMessage integration for `sendPrompt`, `getTheme`
-   - Styled to match openEva's design (dark/light theme support)
+2. **If Custom Form (iframe)**:
+   - `form/index.html` — React app with all input fields
+   - PostMessage integration: `sendPrompt`, `getTheme`, `getSkillInfo`
+   - **Must handle `openeva:setFormValues`** for portal pre-fill support
+   - **Must check `initialValues` in `openeva:skillInfo` response** as fallback
+   - Styled with dark/light theme support
 
-3. **If "Portal" selected**: A portal app scaffold:
-   - `portal/index.html` — entry point
-   - React component with example gallery layout
-   - PostMessage integration for `use`, `getTheme`
-   - Tag filtering, search, masonry grid layout
+3. **If Portal**:
+   - `portal/index.html` — React app with chosen layout style
+   - PostMessage integration: `openeva:use` (Mode A or B), `getTheme`
+   - If Form mode: `handleTry` sends `{ form: true, formValues: {...} }`
+   - Tag filtering, search, responsive layout
 
 4. **Output everything in copy-paste ready format**
+
+---
+
+## Form Pre-fill Reference (Portal → Form flow)
+
+When a skill has both portal and form, the full data flow is:
+
+```
+Portal iframe
+  │ user clicks "Try This"
+  │ postMessage: openeva:use
+  │ payload: { form: true, formValues: { field1: "val", field2: "val" } }
+  ▼
+SkillPortalPage (desktop)
+  │ navigate('/chat/:id', { state: { activeSkill, formValues } })
+  ▼
+ChatPage (desktop)
+  │ reads formValues from location.state
+  │ activeSkill.hasForm → renders SkillFormArea
+  ▼
+SkillFormArea (desktop)
+  ├── IframeForm:
+  │     onLoad → postMessage openeva:setFormValues to form iframe
+  │     getSkillInfo response includes initialValues
+  └── BuiltinForm:
+        merges formValues into form state at init
+  ▼
+Form iframe
+  │ receives openeva:setFormValues
+  │ pre-fills text/select/chips fields
+  │ user reviews, adjusts, submits
+```
+
+The form iframe should handle pre-fill like this:
+
+```javascript
+// In the form's React App component
+useEffect(() => {
+  function onMessage(e) {
+    // Direct pre-fill command
+    if (e.data?.type === 'openeva:setFormValues') {
+      const v = e.data.payload;
+      if (v.text != null) setText(String(v.text));
+      if (v.style != null) setStyle(String(v.style));
+      // ... map each formValues key to your state setter
+    }
+    // Fallback: initialValues in skillInfo response
+    if (e.data?.type === 'openeva:skillInfo' && e.data.payload?.initialValues) {
+      const v = e.data.payload.initialValues;
+      if (v.text != null) setText(String(v.text));
+      // ...
+    }
+  }
+  window.addEventListener('message', onMessage);
+  return () => window.removeEventListener('message', onMessage);
+}, []);
+```
+
+---
 
 ## Guidelines
 
@@ -385,3 +519,6 @@ Based on the user's input, generate:
 - Portal is full-page — can use any layout
 - Always support both dark and light themes (query via `getTheme`)
 - Message format must start with `[Skill: Name]`
+- When skill has both portal and form, **prefer Form mode (Mode B)** for "Try This" — it gives users a pre-filled form they can review and adjust
+- `formValues` keys must match the field keys/state variable names used in the form
+- Form must handle both `openeva:setFormValues` and `initialValues` in `openeva:skillInfo` for reliable pre-fill

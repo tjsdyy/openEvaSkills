@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>微信公众号排版助手</title>
+  <script src="openeva-portal://_libs/react.production.min.js"></script>
+  <script src="openeva-portal://_libs/react-dom.production.min.js"></script>
+  <script src="openeva-portal://_libs/babel.min.js"></script>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --fg: #1a1a2e;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --accent: #07c160;
+      --accent-hover: #06ad56;
+      --card: #f9fafb;
+      --input-bg: #ffffff;
+    }
+    .dark {
+      --bg: #0f0f23;
+      --fg: #e5e7eb;
+      --muted: #9ca3af;
+      --border: #374151;
+      --accent: #10b981;
+      --accent-hover: #07c160;
+      --card: #1a1a2e;
+      --input-bg: #1e1e36;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      overflow: hidden;
+    }
+    .form-root {
+      display: flex;
+      flex-direction: column;
+      height: 320px;
+      padding: 10px 16px 12px;
+      gap: 8px;
+    }
+    .form-header {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--fg);
+      flex-shrink: 0;
+    }
+    .form-header span { font-size: 15px; }
+    textarea {
+      flex: 1;
+      width: 100%;
+      resize: none;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 13px;
+      line-height: 1.5;
+      background: var(--input-bg);
+      color: var(--fg);
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    textarea:focus { border-color: var(--accent); }
+    textarea::placeholder { color: var(--muted); }
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .select-wrap {
+      position: relative;
+    }
+    select {
+      appearance: none;
+      padding: 6px 26px 6px 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 12px;
+      background: var(--input-bg);
+      color: var(--fg);
+      cursor: pointer;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    select:focus { border-color: var(--accent); }
+    .select-wrap::after {
+      content: '';
+      position: absolute;
+      right: 9px;
+      top: 50%;
+      transform: translateY(-50%);
+      border: 4px solid transparent;
+      border-top-color: var(--muted);
+      pointer-events: none;
+    }
+    .label-text {
+      font-size: 11px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .spacer { flex: 1; }
+    .char-count {
+      font-size: 11px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .submit-btn {
+      padding: 6px 18px;
+      border: none;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      background: var(--accent);
+      color: #fff;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    .submit-btn:hover { background: var(--accent-hover); }
+    .submit-btn:disabled { opacity: 0.4; cursor: default; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    const CODE_THEMES = [
+      { value: 'github', label: 'GitHub' },
+      { value: 'monokai', label: 'Monokai' },
+      { value: 'one-dark', label: 'One Dark' },
+      { value: 'dracula', label: 'Dracula' },
+      { value: 'solarized-light', label: 'Solarized Light' },
+      { value: 'tomorrow-night', label: 'Tomorrow Night' },
+      { value: 'vue', label: 'Vue' },
+      { value: 'cyberpunk', label: '赛博朋克' },
+    ];
+
+    const PAGE_STYLES = [
+      { value: 'classic', label: '经典蓝' },
+      { value: 'minimal', label: '极简' },
+      { value: 'vibrant', label: '活力橙' },
+      { value: 'tech', label: '科技感' },
+      { value: 'elegant', label: '优雅紫' },
+      { value: 'chinese-red', label: '中国红' },
+      { value: 'ocean', label: '海洋深蓝' },
+    ];
+
+    function App() {
+      const [content, setContent] = useState('');
+      const [codeTheme, setCodeTheme] = useState('github');
+      const [pageStyle, setPageStyle] = useState('classic');
+      const [isDark, setIsDark] = useState(false);
+
+      // Query theme on mount
+      useEffect(() => {
+        const reqId = crypto.randomUUID();
+        function onMsg(e) {
+          if (e.data?.type === 'openeva:theme' && e.data.requestId === reqId) {
+            setIsDark(e.data.payload?.mode === 'dark');
+            window.removeEventListener('message', onMsg);
+          }
+        }
+        window.addEventListener('message', onMsg);
+        window.parent.postMessage({ type: 'openeva:getTheme', requestId: reqId }, '*');
+        return () => window.removeEventListener('message', onMsg);
+      }, []);
+
+      // Listen for pre-fill values from portal
+      useEffect(() => {
+        function onSetValues(e) {
+          if (e.data?.type === 'openeva:setFormValues') {
+            const v = e.data.payload;
+            if (v) {
+              if (v.content != null) setContent(String(v.content));
+              if (v.codeTheme != null) setCodeTheme(String(v.codeTheme));
+              if (v.pageStyle != null) setPageStyle(String(v.pageStyle));
+            }
+          }
+          if (e.data?.type === 'openeva:skillInfo' && e.data.payload?.initialValues) {
+            const v = e.data.payload.initialValues;
+            if (v.content != null) setContent(String(v.content));
+            if (v.codeTheme != null) setCodeTheme(String(v.codeTheme));
+            if (v.pageStyle != null) setPageStyle(String(v.pageStyle));
+          }
+        }
+        window.addEventListener('message', onSetValues);
+        return () => window.removeEventListener('message', onSetValues);
+      }, []);
+
+      useEffect(() => {
+        document.documentElement.className = isDark ? 'dark' : '';
+      }, [isDark]);
+
+      function handleSubmit() {
+        if (!content.trim()) return;
+        const parts = [
+          '[Skill: 微信公众号排版助手]',
+          `Content: ${content.trim()}`,
+          `CodeTheme: ${codeTheme}`,
+          `PageStyle: ${pageStyle}`,
+        ];
+        window.parent.postMessage({
+          type: 'openeva:sendPrompt',
+          payload: { message: parts.join('\n') }
+        }, '*');
+      }
+
+      function handleKeyDown(e) {
+        if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+          e.preventDefault();
+          handleSubmit();
+        }
+      }
+
+      return (
+        <div className="form-root">
+          <div className="form-header">
+            <span>📝</span> 粘贴 Markdown 内容，生成微信公众号精美排版
+          </div>
+          <textarea
+            value={content}
+            onChange={e => setContent(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={"在此粘贴 Markdown 内容...\n\n支持标题、列表、代码块、表格、引用、图片等\n⌘+Enter 快捷提交"}
+          />
+          <div className="controls">
+            <span className="label-text">代码</span>
+            <div className="select-wrap">
+              <select value={codeTheme} onChange={e => setCodeTheme(e.target.value)}>
+                {CODE_THEMES.map(o => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+            <span className="label-text">风格</span>
+            <div className="select-wrap">
+              <select value={pageStyle} onChange={e => setPageStyle(e.target.value)}>
+                {PAGE_STYLES.map(o => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+            <span className="spacer" />
+            <span className="char-count">{content.length} 字</span>
+            <button
+              className="submit-btn"
+              onClick={handleSubmit}
+              disabled={!content.trim()}
+            >
+              生成排版
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
